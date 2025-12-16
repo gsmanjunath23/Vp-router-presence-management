@@ -212,6 +212,18 @@ export default class Client extends EventEmitter {
 
   private handlePrivateStartMessage(this: Client, msg: IMessage) {
     debug(`id ${this.id} handlePrivateStartMessage ${JSON.stringify(msg)}`);
+    
+    // Check if recipient is online (has active WebSocket connection)
+    const recipientOnline = this.server.hasActiveConnection(msg.toId);
+    
+    if (!recipientOnline) {
+      // Recipient is offline - send START_FAILED immediately
+      debug(`id ${this.id} Recipient ${msg.toId} is offline - sending START_FAILED`);
+      this.sendPrivateStartFailed(msg);
+      return;
+    }
+    
+    // Recipient is online - proceed with normal flow
     Recorder.start(msg);
     this.acknowledgePrivateStartMessage(msg);
 
@@ -228,6 +240,16 @@ export default class Client extends EventEmitter {
       channelType: msg.channelType,
       messageType: MessageType.START_ACK,
       payload
+    });
+  }
+
+  private sendPrivateStartFailed(this: Client, msg: IMessage) {
+    this.message({
+      channelType: msg.channelType,
+      fromId: msg.fromId,
+      messageType: MessageType.START_FAILED,
+      payload: "Recipient offline",
+      toId: msg.toId
     });
   }
 

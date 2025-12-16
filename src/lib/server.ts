@@ -26,6 +26,7 @@ function debug(msg: string) {
 export interface IServer {
   sendMessageToUser: (mesage: IMessage) => void;
   sendMessageToGroup: (message: IMessage) => void;
+  hasActiveConnection: (userId: numberOrString) => boolean;
 }
 interface IConnection {
   token: string;
@@ -180,9 +181,40 @@ class Server implements IServer {
     });
   }
 
+  public hasActiveConnection(this: Server, userId: numberOrString): boolean {
+    return !!this.clients[userId];
+  }
+
   private handleClientUnregister = (client: Client) => {
     const clientId = client.id;
     if (!this.clients[clientId]) { return; }
+
+    // Clean up any active call states when user disconnects unexpectedly
+    States.removeCurrentMessageOfUser(clientId, (err, success) => {
+      if (err) {
+        logger.error(`Failed to remove current message for user ${clientId}:`, err);
+      } else {
+        debug(`Cleaned up active call state for disconnected user ${clientId}`);
+      }
+    });
+
+    // Check if user was in any group calls and clean up group state
+    States.getGroupsOfUser(clientId, (err, groupIds) => {
+      if (groupIds && groupIds.length > 0) {
+        groupIds.forEach((groupId) => {
+          States.getCurrentMessageOfGroup(groupId, (groupErr, currentMsg) => {
+            if (currentMsg && currentMsg.fromId.toString() === clientId.toString()) {
+              // This user was the one talking in the group - clear the group busy state
+              States.removeCurrentMessageOfGroup(groupId, (removeErr, removeSuccess) => {
+                if (!removeErr) {
+                  debug(`Cleaned up group ${groupId} call state - user ${clientId} disconnected`);
+                }
+              });
+            }
+          });
+        });
+      }
+    });
 
     // Mark user offline when they disconnect (mobile clients only)
     const clientData = (client as any);
