@@ -2,6 +2,16 @@ const config = {
   app: {
     port: process.env.PORT || 3000
   },
+  dynamodb: {
+    enabled: process.env.DYNAMODB_ENABLED === "true",
+    region: process.env.AWS_REGION || "ap-northeast-1",
+    tablesEnv: {
+      dev: process.env.USERS_TABLE_DEV || "Users-Dev",
+      prod: process.env.USERS_TABLE_PROD || "Users-Prod",
+      stage: process.env.USERS_TABLE_STAGE || "Users-Stage",
+      test: process.env.USERS_TABLE_TEST || "Users-Test"
+    }
+  },
   group: {
     busyTimeout: Number(process.env.GROUP_BUSY_TIMEOUT) || (95 * 1000),
     inspectInterval: Number(process.env.GROUP_INSPECT_INTERVAL) || (60 * 1000)
@@ -18,16 +28,6 @@ const config = {
   presence: {
     enabled: process.env.PRESENCE_ENABLED !== "false",
     ttl: Number(process.env.PRESENCE_TTL) || 360  // 6 minutes (3x ping interval for safety)
-  },
-  dynamodb: {
-    enabled: process.env.DYNAMODB_ENABLED === "true",
-    region: process.env.AWS_REGION || "ap-northeast-1",
-    tablesEnv: {
-      dev: process.env.USERS_TABLE_DEV || "Users-Dev",
-      test: process.env.USERS_TABLE_TEST || "Users-Test",
-      stage: process.env.USERS_TABLE_STAGE || "Users-Stage",
-      prod: process.env.USERS_TABLE_PROD || "Users-Prod"
-    }
   },
   redis: {
     cleanGroupsAmount: Number(process.env.REDIS_CLEAN_GROUPS_AMOUNT) || 10000,

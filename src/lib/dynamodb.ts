@@ -55,9 +55,9 @@ class DynamoDBManager {
       region: "ap-northeast-1",
       tablesEnv: {
         dev: "Users-Dev",
-        test: "Users-Test",
+        prod: "Users-Prod",
         stage: "Users-Stage",
-        prod: "Users-Prod"
+        test: "Users-Test"
       }
     };
 
@@ -95,8 +95,8 @@ class DynamoDBManager {
       const params = {
         TableName: tableName,
         Key: {
-          pk: { S: "users" },
-          id: { S: String(userId) }
+          id: { S: String(userId) },
+          pk: { S: "users" }
         },
         UpdateExpression: "SET #appOnlineStatus = :appOnlineStatus, updatedAt = :updatedAt",
         ExpressionAttributeNames: {
@@ -194,15 +194,15 @@ class DynamoDBManager {
 
     // Map environment names
     const envMap = {
-      development: "dev",
       dev: "dev",
+      development: "dev",
+      prod: "prod",
+      production: "prod",
       qa: "test",
-      test: "test",
-      testing: "test",
       stage: "stage",
       staging: "stage",
-      production: "prod",
-      prod: "prod"
+      test: "test",
+      testing: "test"
     };
 
     const mappedEnv = envMap[env] || "dev";
@@ -222,15 +222,15 @@ class DynamoDBManager {
 
       const params = {
         TableName: tableName,
+        ExpressionAttributeValues: {
+          ":isDeleted": { BOOL: false },
+          ":pttNo": { S: String(pttNo) }
+        },
+        FilterExpression: "isDeleted = :isDeleted",
         IndexName: "pttNo-index",
         KeyConditionExpression: "pttNo = :pttNo",
-        FilterExpression: "isDeleted = :isDeleted",
-        ExpressionAttributeValues: {
-          ":pttNo": { S: String(pttNo) },
-          ":isDeleted": { BOOL: false }
-        },
-        ProjectionExpression: "id, pttNo",
-        Limit: 1 // We only need the first match
+        Limit: 1, // We only need the first match
+        ProjectionExpression: "id, pttNo"
       };
 
       return new Promise((resolve, reject) => {

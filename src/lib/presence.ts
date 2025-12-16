@@ -338,27 +338,27 @@ class PresenceManager {
         if (exists && metadata) {
           // User is online with metadata
           users.push({
-            userId,
-            status: "online",
-            lastSeen: metadata.lastSeen ? Number(metadata.lastSeen) : Date.now(),
             deviceId: metadata.deviceId,
-            metadata
+            lastSeen: metadata.lastSeen ? Number(metadata.lastSeen) : Date.now(),
+            metadata,
+            status: "online",
+            userId
           });
         } else if (metadata && metadata.lastSeen) {
           // User is offline but has metadata
           users.push({
-            userId,
-            status: "offline",
-            lastSeen: Number(metadata.lastSeen),
             deviceId: metadata.deviceId,
-            metadata
+            lastSeen: Number(metadata.lastSeen),
+            metadata,
+            status: "offline",
+            userId
           });
         } else {
           // User has no presence data
           users.push({
-            userId,
+            lastSeen: 0,
             status: "offline",
-            lastSeen: 0
+            userId
           });
         }
       }
@@ -380,9 +380,9 @@ class PresenceManager {
       }
 
       const snapshot: IPresenceSnapshot = {
-        users,
         timestamp: Date.now(),
-        totalOnline: users.filter((u) => u.status === "online").length
+        totalOnline: users.filter((u) => u.status === "online").length,
+        users
       };
 
       callback(null, snapshot);
@@ -398,10 +398,10 @@ class PresenceManager {
     metadata?: any
   ): void {
     const update: IPresenceUpdate = {
-      type: "presence_update",
-      userId,
       status,
       timestamp: Date.now(),
+      type: "presence_update",
+      userId,
       ...metadata
     };
 

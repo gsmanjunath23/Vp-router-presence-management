@@ -96,11 +96,11 @@ class Server implements IServer {
   private broadcastPresenceUpdate(update: any) {
     // Broadcast presence update to all web clients
     const msg: IMessage = {
-      messageType: MessageType.PRESENCE_UPDATE,
       channelType: ChannelType.GROUP,
       fromId: 0,
-      toId: "broadcast",
-      payload: update
+      messageType: MessageType.PRESENCE_UPDATE,
+      payload: update,
+      toId: "broadcast"
     };
 
     packer.pack(msg, (err, packed) => {
@@ -132,11 +132,11 @@ class Server implements IServer {
       }
 
       const msg: IMessage = {
-        messageType: MessageType.PRESENCE_SNAPSHOT,
         channelType: ChannelType.GROUP,
         fromId: 0,
-        toId: userId,
-        payload: snapshot
+        messageType: MessageType.PRESENCE_SNAPSHOT,
+        payload: snapshot,
+        toId: userId
       };
 
       packer.pack(msg, (err2, packed) => {
