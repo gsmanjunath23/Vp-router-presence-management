@@ -1,9 +1,9 @@
 /**
  * DynamoDB Integration for Presence Management
- * 
+ *
  * This replaces the AWS IoT MQTT system for updating user online/offline status
  * Updates the appOnlineStatus field in DynamoDB Users table
- * 
+ *
  * Note: Uses AWS SDK v2 for Node.js 8.16.0 compatibility
  */
 
@@ -93,19 +93,19 @@ class DynamoDBManager {
 
       // Build update parameters (matching Lambda's model.update)
       const params = {
-        TableName: tableName,
-        Key: {
-          id: { S: String(userId) },
-          pk: { S: "users" }
-        },
-        UpdateExpression: "SET #appOnlineStatus = :appOnlineStatus, updatedAt = :updatedAt",
         ExpressionAttributeNames: {
           "#appOnlineStatus": "appOnlineStatus"
         },
         ExpressionAttributeValues: {
           ":appOnlineStatus": { S: status },
           ":updatedAt": { S: new Date().toISOString() }
-        }
+        },
+        Key: {
+          id: { S: String(userId) },
+          pk: { S: "users" }
+        },
+        TableName: tableName,
+        UpdateExpression: "SET #appOnlineStatus = :appOnlineStatus, updatedAt = :updatedAt"
       };
 
       this.client.updateItem(params, (err: Error, data: any) => {
@@ -221,7 +221,6 @@ class DynamoDBManager {
       const tableName = this.getTableName();
 
       const params = {
-        TableName: tableName,
         ExpressionAttributeValues: {
           ":isDeleted": { BOOL: false },
           ":pttNo": { S: String(pttNo) }
@@ -230,7 +229,8 @@ class DynamoDBManager {
         IndexName: "pttNo-index",
         KeyConditionExpression: "pttNo = :pttNo",
         Limit: 1, // We only need the first match
-        ProjectionExpression: "id, pttNo"
+        ProjectionExpression: "id, pttNo",
+        TableName: tableName
       };
 
       return new Promise((resolve, reject) => {

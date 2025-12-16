@@ -212,17 +212,17 @@ export default class Client extends EventEmitter {
 
   private handlePrivateStartMessage(this: Client, msg: IMessage) {
     debug(`id ${this.id} handlePrivateStartMessage ${JSON.stringify(msg)}`);
-    
+
     // Check if recipient is online (has active WebSocket connection)
     const recipientOnline = this.server.hasActiveConnection(msg.toId);
-    
+
     if (!recipientOnline) {
       // Recipient is offline - send START_FAILED immediately
       debug(`id ${this.id} Recipient ${msg.toId} is offline - sending START_FAILED`);
       this.sendPrivateStartFailed(msg);
       return;
     }
-    
+
     // Recipient is online - proceed with normal flow
     Recorder.start(msg);
     this.acknowledgePrivateStartMessage(msg);
@@ -567,7 +567,7 @@ export default class Client extends EventEmitter {
   private handleConnectionPong = (payload: string) => {
     debug(`id ${this.id} handleConnectionPong ${payload}`);
     this.emit("pong");
-    
+
     // Refresh presence when PONG received (reuse existing ping/pong for presence)
     const clientData = (this as any);
     if (clientData.role === "mobile") {

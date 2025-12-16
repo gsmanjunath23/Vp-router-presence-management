@@ -239,14 +239,14 @@ class Server implements IServer {
 
   private handleClientMessage = (msg: IMessage, client: Client) => {
     logger.info(`handleClientMessage id ${msg.fromId} to ${msg.toId} messageType ${msg.messageType}`);
-    
+
     // Handle heartbeat messages
     if (msg.messageType === MessageType.HEARTBEAT) {
       logger.info(`[HEARTBEAT DETECTED] User ${msg.fromId} sent MessageType.HEARTBEAT (30)`);
       this.handleHeartbeat(msg, client);
       return;
     }
-    
+
     if (msg.channelType === ChannelType.GROUP) {
       if (msg.messageType === MessageType.CONNECTION) {
         this.handleConnectionMessage(msg);
