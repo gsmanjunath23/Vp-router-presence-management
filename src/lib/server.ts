@@ -4,6 +4,7 @@ import * as dbug from "debug";
 import * as _ from "lodash";
 import * as Q from "q";
 import * as WebSocket from "ws";
+import * as jwt from "jwt-simple";
 
 import ChannelType = require("./channeltype");
 import Client, { IClients } from "./client";
@@ -319,7 +320,23 @@ class Server implements IServer {
 
   private getUserFromToken(token) {
     const deferred = Q.defer();
-    deferred.resolve({ uid: token });
+    
+    try {
+      if (config.useAuthentication) {
+        // Verify and decode JWT token
+        // Payload format: { user_id: 1, name: 'John' }
+        const decoded = jwt.decode(token, config.secretKey);
+        logger.info(`JWT token decoded successfully for user: ${decoded.user_id}`);
+        deferred.resolve({ uid: decoded.user_id, ...decoded });
+      } else {
+        // Authentication disabled - treat token as user ID
+        deferred.resolve({ uid: token });
+      }
+    } catch (err) {
+      logger.error(`Failed to decode JWT token: ${err.message}`);
+      deferred.reject(new Error("Invalid token"));
+    }
+    
     return deferred.promise;
   }
 
