@@ -2,8 +2,10 @@ import * as cluster from "cluster";
 import * as EventEmitter from "events";
 
 import * as dbug from "debug";
+import * as jwt from "jwt-simple";
 import * as WebSocket from "ws";
 
+import config = require("./config");
 import logger = require("./logger");
 import MessageType = require("./messagetype");
 import { packer } from "./packer";
@@ -19,6 +21,7 @@ export default class Connection extends EventEmitter {
   public key: string;
 
   private clientId: numberOrString;
+  private userId: string;  // Decoded user ID for PONG responses
   private socket: WebSocket;
   private timestamp: number;
 
@@ -30,6 +33,17 @@ export default class Connection extends EventEmitter {
     this.key = key;
     this.socket = socket;
     this.timestamp = Date.now();
+
+    // Decode JWT once to get clean user ID for PONG responses
+    try {
+      const decoded = jwt.decode(String(clientId), config.secretKey);
+      this.userId = String(decoded || clientId);
+      logger.info(`Connection created for userId: ${this.userId} (decoded from JWT)`);
+    } catch (err) {
+      // If JWT decode fails, use clientId as-is
+      this.userId = String(clientId);
+      logger.warn(`Could not decode JWT for client ${clientId}, using as-is: ${err.message}`);
+    }
 
     socket.addListener("close", this.handleSocketClose);
     socket.addListener("error", this.handleSocketError);
@@ -136,12 +150,23 @@ export default class Connection extends EventEmitter {
 
   private handleSocketPing = (data: Buffer) => {
     this.timestamp = Date.now();
-    let payload;
-    if (data instanceof Buffer) { payload = data.toString(); }
-    debug(`id ${this.clientId} key ${this.key}` +
-          ` handleSocketPing ${payload}` +
-          ` device ${this.deviceId}`);
-    logger.info(`PING recv <- id:${this.clientId} device:${this.deviceId} payloadLen:${data ? data.length : 0} state:${this.socket.readyState}`);
+    
+    const payloadLen = data ? data.length : 0;
+    logger.info(`PING recv <- userId:${this.userId} device:${this.deviceId} payloadLen:${payloadLen} state:${this.socket.readyState}`);
+    
+    // Respond with PONG to client's PING
+    // Send back the decoded user ID (e.g., "TELENET_81*14946*0013")
+    if (this.socket.readyState === WebSocket.OPEN) {
+      try {
+        // Always send the decoded user ID in PONG
+        const pongPayload = Buffer.from(this.userId);
+        
+        this.socket.pong(pongPayload);
+        logger.info(`PONG sent -> userId:${this.userId} device:${this.deviceId} payload:"${this.userId}" (${pongPayload.length}B)`);
+      } catch (err) {
+        logger.error(`Failed to send PONG to userId ${this.userId}: ${err}`);
+      }
+    }
   }
 
   private handleSocketPong = (data: Buffer) => {
