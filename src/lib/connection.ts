@@ -41,7 +41,14 @@ export default class Connection extends EventEmitter {
   public ping(this: Connection) {
     if (this.socket.readyState === WebSocket.OPEN) {
       try {
-        this.socket.ping("voiceping:" + this.clientId, false, true);
+        const rawPayload = `voiceping:${this.clientId}`;
+        let payloadBuf = Buffer.from(rawPayload);
+        if (payloadBuf.length > 100) { // control frames must be < 126 bytes
+          logger.warn(`PING payload too large (${payloadBuf.length}B); truncating for id:${this.clientId}`);
+          payloadBuf = payloadBuf.subarray(0, 100);
+        }
+        logger.info(`PING send -> id:${this.clientId} device:${this.deviceId} state:${this.socket.readyState} payloadLen:${payloadBuf.length}`);
+        this.socket.ping(payloadBuf, false, true);
       } catch (exception) {
         debug(`id ${this.clientId} key ${this.key}` +
               ` PING ERR ${JSON.stringify(exception)}` +
@@ -134,6 +141,7 @@ export default class Connection extends EventEmitter {
     debug(`id ${this.clientId} key ${this.key}` +
           ` handleSocketPing ${payload}` +
           ` device ${this.deviceId}`);
+    logger.info(`PING recv <- id:${this.clientId} device:${this.deviceId} payloadLen:${data ? data.length : 0} state:${this.socket.readyState}`);
   }
 
   private handleSocketPong = (data: Buffer) => {
@@ -143,6 +151,7 @@ export default class Connection extends EventEmitter {
     debug(`id ${this.clientId} key ${this.key}` +
           ` handleSocketPong ${payload}` +
           ` device ${this.deviceId}`);
+    logger.info(`PONG recv <- id:${this.clientId} device:${this.deviceId} payloadLen:${data ? data.length : 0} state:${this.socket.readyState}`);
     this.emit("pong", payload);
   }
 }
