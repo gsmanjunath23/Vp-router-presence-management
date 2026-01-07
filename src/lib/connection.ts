@@ -149,6 +149,7 @@ export default class Connection extends EventEmitter {
   }
 
   private handleSocketPing = (data: Buffer) => {
+    logger.info('------------Inside socket ping handler........', data.toString());
     this.timestamp = Date.now();
     
     const payloadLen = data ? data.length : 0;
@@ -160,9 +161,9 @@ export default class Connection extends EventEmitter {
       try {
         // Always send the decoded user ID in PONG
         const pongPayload = Buffer.from(this.userId);
-        
+        logger.info('pong payload........', pongPayload.toString());
         this.socket.pong(pongPayload);
-        logger.info(`PONG sent -> userId:${this.userId} device:${this.deviceId} payload:"${this.userId}" (${pongPayload.length}B)`);
+        logger.info(`[PONG sent] -> userId:${this.userId} device:${this.deviceId} payload:"${this.userId}" (${pongPayload.length}B)`);
       } catch (err) {
         logger.error(`Failed to send PONG to userId ${this.userId}: ${err}`);
       }
