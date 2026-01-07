@@ -39,7 +39,7 @@ const config = {
     port: process.env.REDIS_PORT || 6379
   },
   secretKey: process.env.SECRET_KEY || "awesomevoiceping",
-  useAuthentication: process.env.USE_AUTHENTICATION === "true",
+  useAuthentication: (process.env.USE_AUTHENTICATION || "").trim().toLowerCase() === "true",
   web: {
     serverUrl: process.env.WEB_SERVER_URL || "",
     socketSecret: process.env.WEB_SOCKET_SECRET || ""
