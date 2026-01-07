@@ -319,27 +319,25 @@ class Server implements IServer {
   }
 
   private getUserFromToken(token) {
-    const deferred = Q.defer();
-    
-    try {
-      if (config.useAuthentication) {
-        // Verify and decode JWT token
-        // Payload format: { user_id: 1, name: 'John' }
-        const decoded = jwt.decode(token, config.secretKey);
-        logger.info(`JWT token decoded successfully for user: ${decoded.user_id}`);
-        deferred.resolve({ uid: decoded.user_id, ...decoded });
-      } else {
-        // Authentication disabled - treat token as user ID
-        deferred.resolve({ uid: token });
-      }
-    } catch (err) {
-      logger.error(`Failed to decode JWT token: ${err.message}`);
-      deferred.reject(new Error("Invalid token"));
+  const deferred = Q.defer();
+  
+  try {
+    if (config.useAuthentication) {
+      const decoded = jwt.decode(token, config.secretKey);
+      // Support both 'uid' and 'user_id' fields (mobile uses 'uid')
+      const userId = decoded.uid || decoded.user_id;
+      logger.info(`JWT token decoded successfully for user: ${userId}`);
+      deferred.resolve({ uid: userId, ...decoded });
+    } else {
+      deferred.resolve({ uid: token });
     }
-    
-    return deferred.promise;
+  } catch (err) {
+    logger.error(`Failed to decode JWT token: ${err.message}`);
+    deferred.reject(new Error("Invalid token"));
   }
-
+  
+  return deferred.promise;
+}
   /**
    * Websocket client verification
    *
