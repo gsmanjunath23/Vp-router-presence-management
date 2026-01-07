@@ -36,13 +36,34 @@ export default class Connection extends EventEmitter {
 
     // Decode JWT once to get clean user ID for PONG responses
     try {
-      const decoded = jwt.decode(String(clientId), config.secretKey);
-      this.userId = String(decoded || clientId);
-      logger.info(`Connection created for userId: ${this.userId} (decoded from JWT)`);
+      const decoded: any = jwt.decode(String(clientId), config.secretKey);
+      logger.info(`[Connection Constructor] JWT decoded result: ${JSON.stringify(decoded)} | type: ${typeof decoded}`);
+      
+      // The JWT payload is directly the userId string (like "TELENET_81*14946*0011")
+      // not an object with claims
+      if (typeof decoded === "string") {
+        this.userId = decoded;
+        logger.info(`[Connection Constructor] userId from JWT string: ${this.userId}`);
+      } else if (typeof decoded === "object" && decoded !== null) {
+        // Fallback: check for claim fields if it's an object
+        const claimUserId = decoded.uid || decoded.user_id || decoded.TELENET_userId || decoded.userId || decoded.sub || decoded.id || null;
+        if (claimUserId) {
+          this.userId = String(claimUserId);
+          logger.info(`[Connection Constructor] userId from JWT object claim: ${this.userId}`);
+        } else {
+          this.userId = String(clientId);
+          logger.warn(`[Connection Constructor] JWT is object but no userId claim found, using clientId`);
+        }
+      } else {
+        this.userId = String(clientId);
+        logger.warn(`[Connection Constructor] JWT decode returned unexpected type, using clientId`);
+      }
+      
+      logger.info(`[Connection Constructor] Final userId: ${this.userId}`);
     } catch (err) {
       // If JWT decode fails, use clientId as-is
       this.userId = String(clientId);
-      logger.warn(`Could not decode JWT for client ${clientId}, using as-is: ${err.message}`);
+      logger.warn(`[Connection Constructor] Could not decode JWT, using clientId as-is: ${err.message}`);
     }
 
     socket.addListener("close", this.handleSocketClose);

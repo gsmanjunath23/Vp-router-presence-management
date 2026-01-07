@@ -322,17 +322,25 @@ class Server implements IServer {
   const deferred = Q.defer();
   
   try {
+    logger.info(`[getUserFromToken] Token received (first 20 chars): ${token.substring(0, 20)}...`);
+    
     if (config.useAuthentication) {
       const decoded = jwt.decode(token, config.secretKey);
+      logger.info(`[getUserFromToken] JWT decoded result: ${JSON.stringify(decoded)} | type: ${typeof decoded}`);
+      
       // Support both 'uid' and 'user_id' fields (mobile uses 'uid')
-      const userId = decoded.uid || decoded.user_id;
-      logger.info(`JWT token decoded successfully for user: ${userId}`);
-      deferred.resolve({ uid: userId, ...decoded });
+      const userId = decoded.uid || decoded.user_id || decoded;
+      logger.info(`[getUserFromToken] Extracted userId: ${userId} | type: ${typeof userId}`);
+      
+      const resolvedUser = { uid: userId, ...decoded };
+      logger.info(`[getUserFromToken] Resolved user object: ${JSON.stringify(resolvedUser)}`);
+      deferred.resolve(resolvedUser);
     } else {
+      logger.info(`[getUserFromToken] Auth disabled, using token as uid`);
       deferred.resolve({ uid: token });
     }
   } catch (err) {
-    logger.error(`Failed to decode JWT token: ${err.message}`);
+    logger.error(`[getUserFromToken] Failed to decode JWT token: ${err.message}`);
     deferred.reject(new Error("Invalid token"));
   }
   
