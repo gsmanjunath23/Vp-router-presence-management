@@ -381,6 +381,7 @@ class Server implements IServer {
    *
    */
   private verifyClient(this: Server, info, verified) {
+    logger.info("verifyClient CALLED");
     logger.info(`inside verifyClient after getUserFromToken info.`, info.req.headers);
     const connection = this.getConnectionFromHeaders(info.req.headers, true);
     const token = connection.token;
