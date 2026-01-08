@@ -73,7 +73,8 @@ class Server implements IServer {
     logger.info(`[Server Config]   USE_AUTHENTICATION (raw): "${useAuthRaw}"`);
     logger.info(`[Server Config]   useAuthentication (parsed): ${config.useAuthentication}`);
     logger.info(`[Server Config]   SECRET_KEY (raw): ${secretKeyRaw}`);
-    logger.info(`[Server Config]   secretKey (parsed): ${config.secretKey ? `${config.secretKey.substring(0, 10)}...` : "NOT SET"}`);
+    const secretKeyPreview = config.secretKey ? `${config.secretKey.substring(0, 10)}...` : "NOT SET";
+    logger.info(`[Server Config]   secretKey (parsed): ${secretKeyPreview}`);
     logger.info(`[Server Config]   verifyClient: ${opts.verify ? "ENABLED" : "DISABLED"}`);
     logger.info(`[Server Config] ========================================`);
 
@@ -364,11 +365,13 @@ class Server implements IServer {
     const parts = token.split(".");
     logger.info(`[getUserFromToken.fallbackDecodePayload] Token parts: ${parts.length} (expected 3 for JWT)`);
     if (parts.length < 2) { 
-      logger.warn(`[getUserFromToken.fallbackDecodePayload] Token does not have payload section (not a valid JWT), aborting`);
+      logger.warn(`[getUserFromToken.fallbackDecodePayload] ` +
+                  `Token does not have payload section (not a valid JWT), aborting`);
       return null; 
     }
     try {
-      logger.info(`[getUserFromToken.fallbackDecodePayload] Decoding JWT payload part (part 1 length: ${parts[1].length})...`);
+      logger.info(`[getUserFromToken.fallbackDecodePayload] ` +
+                  `Decoding JWT payload part (part 1 length: ${parts[1].length})...`);
       const raw = base64UrlDecode(parts[1]);
       logger.info(`[getUserFromToken.fallbackDecodePayload] Raw payload decoded: "${raw}"`);
       
@@ -376,7 +379,8 @@ class Server implements IServer {
       let maybeJson;
       try {
         maybeJson = JSON.parse(raw);
-        logger.info(`[getUserFromToken.fallbackDecodePayload] Parsed JSON type: ${typeof maybeJson} | Value: ${JSON.stringify(maybeJson)}`);
+        logger.info(`[getUserFromToken.fallbackDecodePayload] ` +
+                    `Parsed JSON type: ${typeof maybeJson} | Value: ${JSON.stringify(maybeJson)}`);
       } catch (parseErr) {
         logger.warn(`[getUserFromToken.fallbackDecodePayload] Payload is not valid JSON: ${parseErr.message}`);
         // If not JSON, treat as raw string
@@ -393,7 +397,8 @@ class Server implements IServer {
       if (typeof maybeJson === "object" && maybeJson !== null) {
         const uid = claimsUserId(maybeJson);
         if (uid) {
-          logger.info(`[getUserFromToken.fallbackDecodePayload] ✓ SUCCESS: extracted userId from object claim: "${uid}"`);
+          logger.info(`[getUserFromToken.fallbackDecodePayload] ` +
+                      `✓ SUCCESS: extracted userId from object claim: "${uid}"`);
           return uid;
         } else {
           logger.warn(`[getUserFromToken.fallbackDecodePayload] Object payload has no recognizable userId field`);
@@ -419,7 +424,9 @@ class Server implements IServer {
   try {
     logger.info(`========== [getUserFromToken] START ==========`);
     logger.info(`[getUserFromToken] Token length: ${token.length} | First 30 chars: ${token.substring(0, 30)}...`);
-    logger.info(`[getUserFromToken] config.useAuthentication: ${config.useAuthentication} | config.secretKey: ${config.secretKey ? "SET" : "NOT SET"}`);
+    const secretKeyStatus = config.secretKey ? "SET" : "NOT SET";
+    logger.info(`[getUserFromToken] config.useAuthentication: ${config.useAuthentication} ` +
+                `| config.secretKey: ${secretKeyStatus}`);
 
     let userId: string;
 

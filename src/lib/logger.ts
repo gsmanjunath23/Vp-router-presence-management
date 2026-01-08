@@ -2,7 +2,6 @@ import * as cluster from "cluster";
 import { createLogger, format, transports } from "winston";
 
 const logger = createLogger({
-  level: "info", // IMPORTANT: ensures info logs are printed
   format: format.combine(
     format.timestamp(),
     format.printf(({ timestamp, level, message }) => {
@@ -10,6 +9,7 @@ const logger = createLogger({
       return `${timestamp} - ${level}: ${worker}${message}`;
     })
   ),
+  level: "info", // IMPORTANT: ensures info logs are printed
   transports: [
     new transports.Console()
   ],
