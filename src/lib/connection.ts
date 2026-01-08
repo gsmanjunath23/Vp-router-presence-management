@@ -36,7 +36,10 @@ export default class Connection extends EventEmitter {
     // clientId is already the decoded userId from getUserFromToken in server.ts
     // No need to decode it again - just use it directly as userId
     this.userId = String(clientId);
-    logger.info(`[Connection Constructor] userId set to: ${this.userId} (clientId is already decoded userId)`);
+    logger.info(
+      `[Connection Constructor] userId set to: ${this.userId} ` +
+      `(clientId is already decoded userId)`
+    );
 
     socket.addListener("close", this.handleSocketClose);
     socket.addListener("error", this.handleSocketError);

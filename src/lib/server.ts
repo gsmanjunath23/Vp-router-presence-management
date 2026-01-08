@@ -71,11 +71,18 @@ class Server implements IServer {
     logger.info(`[Server Config] ========================================`);
     logger.info(`[Server Config] Authentication Configuration:`);
     logger.info(`[Server Config]   USE_AUTHENTICATION (raw): "${useAuthRaw}"`);
-    logger.info(`[Server Config]   useAuthentication (parsed): ${config.useAuthentication}`);
+    logger.info(
+      `[Server Config]   useAuthentication (parsed): ` +
+      `${config.useAuthentication}`
+    );
     logger.info(`[Server Config]   SECRET_KEY (raw): ${secretKeyRaw}`);
     const secretKeyPreview = config.secretKey ? `${config.secretKey.substring(0, 10)}...` : "NOT SET";
-    logger.info(`[Server Config]   secretKey (parsed): ${secretKeyPreview}`);
-    logger.info(`[Server Config]   verifyClient: ${opts.verify ? "ENABLED" : "DISABLED"}`);
+    logger.info(
+      `[Server Config]   secretKey (parsed): ${secretKeyPreview}`
+    );
+    logger.info(
+      `[Server Config]   verifyClient: ${opts.verify ? "ENABLED" : "DISABLED"}`
+    );
     logger.info(`[Server Config] ========================================`);
 
     // WSS & WS SETUP
@@ -342,7 +349,10 @@ class Server implements IServer {
   };
 
   const base64UrlDecode = (b64url: string): string => {
-    logger.debug(`[getUserFromToken.base64UrlDecode] Decoding payload (first 30 chars): ${b64url.substring(0, 30)}...`);
+    logger.debug(
+      `[getUserFromToken.base64UrlDecode] Decoding payload (first 30 chars): ` +
+      `${b64url.substring(0, 30)}...`
+    );
     const padded = b64url.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64url.length + 3) % 4);
     const result = Buffer.from(padded, "base64").toString();
     logger.debug(`[getUserFromToken.base64UrlDecode] Decoded result: ${result}`);
@@ -350,7 +360,10 @@ class Server implements IServer {
   };
 
   const claimsUserId = (val: any): string | null => {
-    logger.debug(`[getUserFromToken.claimsUserId] Checking object for userId claims: ${JSON.stringify(val)}`);
+    logger.debug(
+      `[getUserFromToken.claimsUserId] Checking object for userId claims: ` +
+      `${JSON.stringify(val)}`
+    );
     if (!val || typeof val !== "object") { 
       logger.debug(`[getUserFromToken.claimsUserId] Value is not a valid object, returning null`);
       return null; 
@@ -363,15 +376,22 @@ class Server implements IServer {
   const fallbackDecodePayload = (): string | null => {
     logger.info(`[getUserFromToken.fallbackDecodePayload] Attempting manual base64url payload decode...`);
     const parts = token.split(".");
-    logger.info(`[getUserFromToken.fallbackDecodePayload] Token parts: ${parts.length} (expected 3 for JWT)`);
+    logger.info(
+      `[getUserFromToken.fallbackDecodePayload] Token parts: ${parts.length} ` +
+      `(expected 3 for JWT)`
+    );
     if (parts.length < 2) { 
-      logger.warn(`[getUserFromToken.fallbackDecodePayload] ` +
-                  `Token does not have payload section (not a valid JWT), aborting`);
+      logger.warn(
+        `[getUserFromToken.fallbackDecodePayload] ` +
+        `Token does not have payload section (not a valid JWT), aborting`
+      );
       return null; 
     }
     try {
-      logger.info(`[getUserFromToken.fallbackDecodePayload] ` +
-                  `Decoding JWT payload part (part 1 length: ${parts[1].length})...`);
+      logger.info(
+        `[getUserFromToken.fallbackDecodePayload] ` +
+        `Decoding JWT payload part (part 1 length: ${parts[1].length})...`
+      );
       const raw = base64UrlDecode(parts[1]);
       logger.info(`[getUserFromToken.fallbackDecodePayload] Raw payload decoded: "${raw}"`);
       
@@ -379,8 +399,10 @@ class Server implements IServer {
       let maybeJson;
       try {
         maybeJson = JSON.parse(raw);
-        logger.info(`[getUserFromToken.fallbackDecodePayload] ` +
-                    `Parsed JSON type: ${typeof maybeJson} | Value: ${JSON.stringify(maybeJson)}`);
+        logger.info(
+          `[getUserFromToken.fallbackDecodePayload] ` +
+          `Parsed JSON type: ${typeof maybeJson} | Value: ${JSON.stringify(maybeJson)}`
+        );
       } catch (parseErr) {
         logger.warn(`[getUserFromToken.fallbackDecodePayload] Payload is not valid JSON: ${parseErr.message}`);
         // If not JSON, treat as raw string
@@ -397,8 +419,10 @@ class Server implements IServer {
       if (typeof maybeJson === "object" && maybeJson !== null) {
         const uid = claimsUserId(maybeJson);
         if (uid) {
-          logger.info(`[getUserFromToken.fallbackDecodePayload] ` +
-                      `✓ SUCCESS: extracted userId from object claim: "${uid}"`);
+          logger.info(
+            `[getUserFromToken.fallbackDecodePayload] ` +
+            `✓ SUCCESS: extracted userId from object claim: "${uid}"`
+          );
           return uid;
         } else {
           logger.warn(`[getUserFromToken.fallbackDecodePayload] Object payload has no recognizable userId field`);
