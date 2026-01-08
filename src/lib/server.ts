@@ -321,55 +321,126 @@ class Server implements IServer {
 
   private getUserFromToken(token) {
   const deferred = Q.defer();
-  
-  try {
-    logger.info(`[getUserFromToken] Token received (first 20 chars): ${token.substring(0, 20)}...`);
-    logger.info(`inside getUserFromToken config.useAuthentication`, config.useAuthentication);
-    if (config.useAuthentication) {
-      const decoded = jwt.decode(token, config.secretKey);
-      logger.info(`[getUserFromToken] JWT decoded result: ${JSON.stringify(decoded)} | type: ${typeof decoded}`);
-      
-      // Mobile sends JWT with payload as a JSON string: "userId"
-      // jwt-simple decodes it as a string, not an object
-      let userId: string;
-      
-      if (typeof decoded === "string") {
-        // Mobile format: payload is a JSON string like "userId"
-        // Remove surrounding quotes if present
-        userId = decoded.replace(/^"+|"+$/g, "");
-        logger.info(`[getUserFromToken] JWT payload is string, extracted userId: ${userId}`);
-      } else if (typeof decoded === "object" && decoded !== null) {
-        // Legacy format: payload is an object with uid/user_id fields
-        userId = decoded.uid || decoded.user_id || decoded.id || decoded.sub;
-        logger.info(`[getUserFromToken] JWT payload is object, extracted userId: ${userId}`);
-      } else {
-        // Fallback: use decoded value as-is
-        userId = String(decoded);
-        logger.info(`[getUserFromToken] JWT payload is other type, using as userId: ${userId}`);
-      }
-      
-      if (!userId) {
-        throw new Error("Could not extract userId from JWT token");
-      }
-      
-      logger.info(`[getUserFromToken] Final extracted userId: ${userId} | type: ${typeof userId}`);
-      
-      const resolvedUser = { 
-        uid: userId,
-        ...(typeof decoded === "object" && decoded !== null ? decoded : {})
-      };
-      logger.info(`[getUserFromToken] Resolved user object: ${JSON.stringify(resolvedUser)}`);
-      deferred.resolve(resolvedUser);
-    } else {
-      logger.info(`[getUserFromToken] Auth disabled, using token as uid`);
-      deferred.resolve({ uid: token });
+
+  const trimQuotes = (val: string): string => {
+    const result = val.replace(/^"+|"+$/g, "");
+    logger.debug(`[getUserFromToken.trimQuotes] Input: "${val}" | Output: "${result}"`);
+    return result;
+  };
+
+  const base64UrlDecode = (b64url: string): string => {
+    logger.debug(`[getUserFromToken.base64UrlDecode] Decoding payload (first 30 chars): ${b64url.substring(0, 30)}...`);
+    const padded = b64url.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64url.length + 3) % 4);
+    const result = Buffer.from(padded, "base64").toString();
+    logger.debug(`[getUserFromToken.base64UrlDecode] Decoded result: ${result}`);
+    return result;
+  };
+
+  const claimsUserId = (val: any): string | null => {
+    logger.debug(`[getUserFromToken.claimsUserId] Checking object for userId claims: ${JSON.stringify(val)}`);
+    if (!val || typeof val !== "object") { 
+      logger.debug(`[getUserFromToken.claimsUserId] Value is not a valid object, returning null`);
+      return null; 
     }
+    const claimUserId = val.uid || val.user_id || val.TELENET_userId || val.userId || val.sub || val.id;
+    logger.debug(`[getUserFromToken.claimsUserId] Found userId: ${claimUserId || "null"}`);
+    return claimUserId ? String(claimUserId) : null;
+  };
+
+  const fallbackDecodePayload = (): string | null => {
+    logger.info(`[getUserFromToken.fallbackDecodePayload] Attempting manual base64url payload decode...`);
+    const parts = token.split(".");
+    logger.debug(`[getUserFromToken.fallbackDecodePayload] Token parts: ${parts.length} (expected 3)`);
+    if (parts.length < 2) { 
+      logger.warn(`[getUserFromToken.fallbackDecodePayload] Token does not have payload section, aborting`);
+      return null; 
+    }
+    try {
+      logger.debug(`[getUserFromToken.fallbackDecodePayload] Decoding JWT payload part...`);
+      const raw = base64UrlDecode(parts[1]);
+      logger.debug(`[getUserFromToken.fallbackDecodePayload] Raw payload: ${raw}`);
+      
+      const maybeJson = JSON.parse(raw);
+      logger.debug(`[getUserFromToken.fallbackDecodePayload] Parsed JSON type: ${typeof maybeJson}`);
+      
+      if (typeof maybeJson === "string") { 
+        const result = trimQuotes(maybeJson);
+        logger.info(`[getUserFromToken.fallbackDecodePayload] SUCCESS: extracted string payload: ${result}`);
+        return result; 
+      }
+      
+      const uid = claimsUserId(maybeJson);
+      if (uid) {
+        logger.info(`[getUserFromToken.fallbackDecodePayload] SUCCESS: extracted userId from object claim: ${uid}`);
+      } else {
+        logger.warn(`[getUserFromToken.fallbackDecodePayload] Object payload has no recognizable userId field`);
+      }
+      return uid;
+    } catch (e) {
+      logger.error(`[getUserFromToken.fallbackDecodePayload] FAILED: ${e.message}`);
+      return null;
+    }
+  };
+
+  const setUserId = (uid: string, source: string) => {
+    logger.info(`[getUserFromToken] ✓ userId RESOLVED from ${source}: "${uid}"`);
+    return uid;
+  };
+
+  try {
+    logger.info(`========== [getUserFromToken] START ==========`);
+    logger.info(`[getUserFromToken] Token length: ${token.length} | First 30 chars: ${token.substring(0, 30)}...`);
+    logger.info(`[getUserFromToken] config.useAuthentication: ${config.useAuthentication} | config.secretKey: ${config.secretKey ? "SET" : "NOT SET"}`);
+
+    let userId: string;
+
+    if (config.useAuthentication === false) {
+      logger.info(`[getUserFromToken] AUTH DISABLED: Using raw token as userId`);
+      userId = setUserId(token, "raw token (auth disabled)");
+    } else {
+      logger.info(`[getUserFromToken] AUTH ENABLED: Attempting JWT decode with secret...`);
+      try {
+        logger.debug(`[getUserFromToken] Calling jwt.decode() with secretKey...`);
+        const decoded: any = jwt.decode(token, config.secretKey);
+        logger.info(`[getUserFromToken] ✓ JWT.decode() SUCCESS`);
+        logger.info(`[getUserFromToken] Decoded value type: ${typeof decoded}`);
+        logger.debug(`[getUserFromToken] Decoded value: ${JSON.stringify(decoded)}`);
+
+        if (typeof decoded === "string") {
+          logger.info(`[getUserFromToken] Decoded is STRING payload, trimming quotes...`);
+          userId = setUserId(trimQuotes(decoded), "JWT string payload");
+        } else if (typeof decoded === "object" && decoded !== null) {
+          logger.info(`[getUserFromToken] Decoded is OBJECT, searching for userId claims...`);
+          const uid = claimsUserId(decoded);
+          if (uid) {
+            userId = setUserId(uid, "JWT object claim");
+          } else {
+            logger.warn(`[getUserFromToken] No userId claim in decoded object, attempting payload fallback...`);
+            const fallback = fallbackDecodePayload();
+            userId = setUserId(fallback || token, fallback ? "payload fallback" : "raw token fallback");
+          }
+        } else {
+          logger.warn(`[getUserFromToken] Decoded is unexpected type: ${typeof decoded}`);
+          userId = setUserId(String(decoded), "decoded as string");
+        }
+      } catch (jwtErr) {
+        logger.warn(`[getUserFromToken] ✗ JWT.decode() FAILED: ${jwtErr.message}`);
+        logger.info(`[getUserFromToken] Attempting fallback payload decode (without secret verification)...`);
+        const fallback = fallbackDecodePayload();
+        userId = setUserId(fallback || token, fallback ? "payload fallback (no secret)" : "raw token fallback");
+      }
+    }
+
+    const resolvedUser = { uid: userId };
+    logger.info(`[getUserFromToken] ✓ FINAL RESOLVED USER: ${JSON.stringify(resolvedUser)}`);
+    logger.info(`========== [getUserFromToken] END ==========`);
+    deferred.resolve(resolvedUser);
   } catch (err) {
-    logger.error(`[getUserFromToken] Failed to decode JWT token: ${err.message}`);
+    logger.error(`[getUserFromToken] Critical error: ${err.message}`);
     logger.error(`[getUserFromToken] Error stack: ${err.stack}`);
     deferred.reject(new Error(`Invalid token: ${err.message}`));
   }
-  
+
   return deferred.promise;
 }
   /**
