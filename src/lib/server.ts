@@ -322,9 +322,11 @@ class Server implements IServer {
       logger.info(`MOBILE CLIENT registered: ${id}`);
     }
 
-    // tslint:disable-next-line:max-line-length
-    logger.info(`REGISTERED id ${client.id} clients ${Object.keys(this.clients).length} readyState ${socket.readyState} ` +
-                ` sockets ${Object.keys(this.sockets).length} wss ${this.wss.clients.size}`);
+    logger.info(
+      `REGISTERED id ${client.id} clients ${Object.keys(this.clients).length} ` +
+      `readyState ${socket.readyState} sockets ${Object.keys(this.sockets).length} ` +
+      `wss ${this.wss.clients.size}`
+    );
   }
 
   private getConnectionFromHeaders(headers, log: boolean = false): IConnection {
@@ -365,7 +367,9 @@ class Server implements IServer {
       `${JSON.stringify(val)}`
     );
     if (!val || typeof val !== "object") { 
-      logger.debug(`[getUserFromToken.claimsUserId] Value is not a valid object, returning null`);
+      logger.debug(
+        `[getUserFromToken.claimsUserId] Value is not a valid object, returning null`
+      );
       return null; 
     }
     const claimUserId = val.uid || val.user_id || val.TELENET_userId || val.userId || val.sub || val.id;
@@ -564,7 +568,10 @@ class Server implements IServer {
     const token = connection.token;
     if (!token) { return; }
 
-    logger.info(`WS connect start tokenLen:${token ? token.length : 0} deviceId:${connection.deviceId} key:${connection.key}`);
+    logger.info(
+      `WS connect start tokenLen:${token ? token.length : 0} ` +
+      `deviceId:${connection.deviceId} key:${connection.key}`
+    );
 
     // If deviceId exists on redis, send duplicate login.
     this.getUserFromToken(token)

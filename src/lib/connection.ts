@@ -54,7 +54,10 @@ export default class Connection extends EventEmitter {
         const rawPayload = `voiceping:${this.clientId}`;
         let payloadBuf = Buffer.from(rawPayload);
         if (payloadBuf.length > 100) { // control frames must be < 126 bytes
-          logger.warn(`PING payload too large (${payloadBuf.length}B); truncating for id:${this.clientId}`);
+          logger.warn(
+            `PING payload too large (${payloadBuf.length}B); ` +
+            `truncating for id:${this.clientId}`
+          );
           payloadBuf = Buffer.from(payloadBuf.subarray(0, 100));
         }
         logger.info(`PING send -> id:${this.clientId} device:${this.deviceId} ` +
