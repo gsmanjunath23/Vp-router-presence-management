@@ -564,7 +564,10 @@ class Server implements IServer {
     const token = connection.token;
     if (!token) { return; }
 
-    logger.info(`WS connect start tokenLen:${token ? token.length : 0} deviceId:${connection.deviceId} key:${connection.key}`);
+    logger.info(
+      `WS connect start tokenLen:${token ? token.length : 0} ` +
+      `deviceId:${connection.deviceId} key:${connection.key}`
+    );
 
     // If deviceId exists on redis, send duplicate login.
     this.getUserFromToken(token)
