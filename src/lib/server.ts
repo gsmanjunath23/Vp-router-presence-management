@@ -313,6 +313,7 @@ class Server implements IServer {
     const token0 = protocols ? protocols[0] : null;
     const deviceId0  = protocols ? protocols[1] : null;
     const token = headers.token || headers.voicepingtoken || token0;
+    logger.info(`inside getConnectionFromHeaders`, token);
     const deviceId = headers.device_id || headers.deviceid || deviceId0 || token;
     const connection = { token, deviceId, key: headers["sec-websocket-key"] };
     return connection;
@@ -323,16 +324,40 @@ class Server implements IServer {
   
   try {
     logger.info(`[getUserFromToken] Token received (first 20 chars): ${token.substring(0, 20)}...`);
-    
+    logger.info(`inside getUserFromToken config.useAuthentication`, config.useAuthentication);
     if (config.useAuthentication) {
       const decoded = jwt.decode(token, config.secretKey);
       logger.info(`[getUserFromToken] JWT decoded result: ${JSON.stringify(decoded)} | type: ${typeof decoded}`);
       
-      // Support both 'uid' and 'user_id' fields (mobile uses 'uid')
-      const userId = decoded.uid || decoded.user_id || decoded;
-      logger.info(`[getUserFromToken] Extracted userId: ${userId} | type: ${typeof userId}`);
+      // Mobile sends JWT with payload as a JSON string: "userId"
+      // jwt-simple decodes it as a string, not an object
+      let userId: string;
       
-      const resolvedUser = { uid: userId, ...decoded };
+      if (typeof decoded === "string") {
+        // Mobile format: payload is a JSON string like "userId"
+        // Remove surrounding quotes if present
+        userId = decoded.replace(/^"+|"+$/g, "");
+        logger.info(`[getUserFromToken] JWT payload is string, extracted userId: ${userId}`);
+      } else if (typeof decoded === "object" && decoded !== null) {
+        // Legacy format: payload is an object with uid/user_id fields
+        userId = decoded.uid || decoded.user_id || decoded.id || decoded.sub;
+        logger.info(`[getUserFromToken] JWT payload is object, extracted userId: ${userId}`);
+      } else {
+        // Fallback: use decoded value as-is
+        userId = String(decoded);
+        logger.info(`[getUserFromToken] JWT payload is other type, using as userId: ${userId}`);
+      }
+      
+      if (!userId) {
+        throw new Error("Could not extract userId from JWT token");
+      }
+      
+      logger.info(`[getUserFromToken] Final extracted userId: ${userId} | type: ${typeof userId}`);
+      
+      const resolvedUser = { 
+        uid: userId,
+        ...(typeof decoded === "object" && decoded !== null ? decoded : {})
+      };
       logger.info(`[getUserFromToken] Resolved user object: ${JSON.stringify(resolvedUser)}`);
       deferred.resolve(resolvedUser);
     } else {
@@ -341,7 +366,8 @@ class Server implements IServer {
     }
   } catch (err) {
     logger.error(`[getUserFromToken] Failed to decode JWT token: ${err.message}`);
-    deferred.reject(new Error("Invalid token"));
+    logger.error(`[getUserFromToken] Error stack: ${err.stack}`);
+    deferred.reject(new Error(`Invalid token: ${err.message}`));
   }
   
   return deferred.promise;
@@ -355,6 +381,7 @@ class Server implements IServer {
    *
    */
   private verifyClient(this: Server, info, verified) {
+    logger.info(`inside verifyClient after getUserFromToken info.`, info.req.headers);
     const connection = this.getConnectionFromHeaders(info.req.headers, true);
     const token = connection.token;
     if (!token) { return verified(false, 401, "Unauthorized"); }
