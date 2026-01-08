@@ -447,10 +447,15 @@ class Server implements IServer {
 
   try {
     logger.info(`========== [getUserFromToken] START ==========`);
-    logger.info(`[getUserFromToken] Token length: ${token.length} | First 30 chars: ${token.substring(0, 30)}...`);
+    logger.info(
+      `[getUserFromToken] Token length: ${token.length} | First 30 chars: ` +
+      `${token.substring(0, 30)}...`
+    );
     const secretKeyStatus = config.secretKey ? "SET" : "NOT SET";
-    logger.info(`[getUserFromToken] config.useAuthentication: ${config.useAuthentication} ` +
-                `| config.secretKey: ${secretKeyStatus}`);
+    logger.info(
+      `[getUserFromToken] config.useAuthentication: ${config.useAuthentication} ` +
+      `| config.secretKey: ${secretKeyStatus}`
+    );
 
     let userId: string;
 
@@ -459,7 +464,10 @@ class Server implements IServer {
     const extractedFromPayload = fallbackDecodePayload();
     
     if (extractedFromPayload) {
-      logger.info(`[getUserFromToken] Successfully extracted userId from JWT payload: ${extractedFromPayload}`);
+      logger.info(
+        `[getUserFromToken] Successfully extracted userId from JWT payload: ` +
+        `${extractedFromPayload}`
+      );
       userId = setUserId(extractedFromPayload, "JWT payload extraction");
     } else if (config.useAuthentication === false) {
       // If auth is disabled and payload extraction failed, use raw token
@@ -469,11 +477,18 @@ class Server implements IServer {
       // Auth is enabled, try jwt-simple decode with secret verification
       logger.info(`[getUserFromToken] AUTH ENABLED: Attempting JWT decode with secret verification...`);
       try {
-        logger.debug(`[getUserFromToken] Calling jwt.decode() with secretKey: ${config.secretKey.substring(0, 10)}...`);
+        logger.debug(
+          `[getUserFromToken] Calling jwt.decode() with secretKey: ` +
+          `${config.secretKey.substring(0, 10)}...`
+        );
         const decoded: any = jwt.decode(token, config.secretKey);
-        logger.info(`[getUserFromToken] ✓ JWT.decode() SUCCESS with secret verification`);
+        logger.info(
+          `[getUserFromToken] ✓ JWT.decode() SUCCESS with secret verification`
+        );
         logger.info(`[getUserFromToken] Decoded value type: ${typeof decoded}`);
-        logger.debug(`[getUserFromToken] Decoded value: ${JSON.stringify(decoded)}`);
+        logger.debug(
+          `[getUserFromToken] Decoded value: ${JSON.stringify(decoded)}`
+        );
 
         if (typeof decoded === "string") {
           logger.info(`[getUserFromToken] Decoded is STRING payload, trimming quotes...`);
