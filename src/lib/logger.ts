@@ -1,30 +1,18 @@
 import * as cluster from "cluster";
+import { createLogger, format, transports } from "winston";
 
-import { Logger, LoggerInstance, transports } from "winston";
+const logger = createLogger({
+  level: "info", // IMPORTANT: ensures info logs are printed
+  format: format.combine(
+    format.timestamp(),
+    format.printf(({ timestamp, level, message }) => {
+      const worker = cluster.worker ? `worker ${cluster.worker.id} ` : "";
+      return `${timestamp} - ${level}: ${worker}${message}`;
+    })
+  ),
+  transports: [
+    new transports.Console()
+  ],
+});
 
-class Lgger {
-  private logger: LoggerInstance;
-
-  constructor() {
-    this.logger = new Logger({
-      transports: [
-        new transports.Console({
-          colorize: true,
-          handleExceptions: true,
-          humanReadableUnhandledException: true,
-          timestamp: true
-        })
-      ]
-    });
-  }
-
-  public info = (msg: string, ...meta: any[]): void => {
-    this.logger.info((cluster.worker ? `worker ${cluster.worker.id} ` : "") + msg, ...meta);
-  }
-
-  public error = (msg: string, ...meta: any[]): void => {
-    this.logger.error((cluster.worker ? `worker ${cluster.worker.id} ` : "") + msg, ...meta);
-  }
-}
-
-export = new Lgger();
+export = logger;
