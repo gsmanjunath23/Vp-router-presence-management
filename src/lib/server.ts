@@ -65,6 +65,18 @@ class Server implements IServer {
     // Initialize presence management
     this.initializePresence();
 
+    // Log authentication configuration
+    const useAuthRaw = process.env.USE_AUTHENTICATION || "NOT SET";
+    const secretKeyRaw = process.env.SECRET_KEY ? "SET" : "NOT SET";
+    logger.info(`[Server Config] ========================================`);
+    logger.info(`[Server Config] Authentication Configuration:`);
+    logger.info(`[Server Config]   USE_AUTHENTICATION (raw): "${useAuthRaw}"`);
+    logger.info(`[Server Config]   useAuthentication (parsed): ${config.useAuthentication}`);
+    logger.info(`[Server Config]   SECRET_KEY (raw): ${secretKeyRaw}`);
+    logger.info(`[Server Config]   secretKey (parsed): ${config.secretKey ? `${config.secretKey.substring(0, 10)}...` : "NOT SET"}`);
+    logger.info(`[Server Config]   verifyClient: ${opts.verify ? "ENABLED" : "DISABLED"}`);
+    logger.info(`[Server Config] ========================================`);
+
     // WSS & WS SETUP
     if (opts.server) {
       this.wss = new WebSocket.Server({ server: opts.server, verifyClient: this.verify.bind(this) });
@@ -350,34 +362,51 @@ class Server implements IServer {
   const fallbackDecodePayload = (): string | null => {
     logger.info(`[getUserFromToken.fallbackDecodePayload] Attempting manual base64url payload decode...`);
     const parts = token.split(".");
-    logger.debug(`[getUserFromToken.fallbackDecodePayload] Token parts: ${parts.length} (expected 3)`);
+    logger.info(`[getUserFromToken.fallbackDecodePayload] Token parts: ${parts.length} (expected 3 for JWT)`);
     if (parts.length < 2) { 
-      logger.warn(`[getUserFromToken.fallbackDecodePayload] Token does not have payload section, aborting`);
+      logger.warn(`[getUserFromToken.fallbackDecodePayload] Token does not have payload section (not a valid JWT), aborting`);
       return null; 
     }
     try {
-      logger.debug(`[getUserFromToken.fallbackDecodePayload] Decoding JWT payload part...`);
+      logger.info(`[getUserFromToken.fallbackDecodePayload] Decoding JWT payload part (part 1 length: ${parts[1].length})...`);
       const raw = base64UrlDecode(parts[1]);
-      logger.debug(`[getUserFromToken.fallbackDecodePayload] Raw payload: ${raw}`);
+      logger.info(`[getUserFromToken.fallbackDecodePayload] Raw payload decoded: "${raw}"`);
       
-      const maybeJson = JSON.parse(raw);
-      logger.debug(`[getUserFromToken.fallbackDecodePayload] Parsed JSON type: ${typeof maybeJson}`);
+      // Try to parse as JSON
+      let maybeJson;
+      try {
+        maybeJson = JSON.parse(raw);
+        logger.info(`[getUserFromToken.fallbackDecodePayload] Parsed JSON type: ${typeof maybeJson} | Value: ${JSON.stringify(maybeJson)}`);
+      } catch (parseErr) {
+        logger.warn(`[getUserFromToken.fallbackDecodePayload] Payload is not valid JSON: ${parseErr.message}`);
+        // If not JSON, treat as raw string
+        logger.info(`[getUserFromToken.fallbackDecodePayload] Treating payload as raw string: "${raw}"`);
+        return trimQuotes(raw);
+      }
       
       if (typeof maybeJson === "string") { 
         const result = trimQuotes(maybeJson);
-        logger.info(`[getUserFromToken.fallbackDecodePayload] SUCCESS: extracted string payload: ${result}`);
+        logger.info(`[getUserFromToken.fallbackDecodePayload] ✓ SUCCESS: extracted string payload: "${result}"`);
         return result; 
       }
       
-      const uid = claimsUserId(maybeJson);
-      if (uid) {
-        logger.info(`[getUserFromToken.fallbackDecodePayload] SUCCESS: extracted userId from object claim: ${uid}`);
-      } else {
-        logger.warn(`[getUserFromToken.fallbackDecodePayload] Object payload has no recognizable userId field`);
+      if (typeof maybeJson === "object" && maybeJson !== null) {
+        const uid = claimsUserId(maybeJson);
+        if (uid) {
+          logger.info(`[getUserFromToken.fallbackDecodePayload] ✓ SUCCESS: extracted userId from object claim: "${uid}"`);
+          return uid;
+        } else {
+          logger.warn(`[getUserFromToken.fallbackDecodePayload] Object payload has no recognizable userId field`);
+          return null;
+        }
       }
-      return uid;
+      
+      // Fallback: convert to string
+      logger.info(`[getUserFromToken.fallbackDecodePayload] Converting payload to string: "${String(maybeJson)}"`);
+      return String(maybeJson);
     } catch (e) {
-      logger.error(`[getUserFromToken.fallbackDecodePayload] FAILED: ${e.message}`);
+      logger.error(`[getUserFromToken.fallbackDecodePayload] ✗ FAILED: ${e.message}`);
+      logger.error(`[getUserFromToken.fallbackDecodePayload] Stack: ${e.stack}`);
       return null;
     }
   };
@@ -394,40 +423,58 @@ class Server implements IServer {
 
     let userId: string;
 
-    if (config.useAuthentication === false) {
-      logger.info(`[getUserFromToken] AUTH DISABLED: Using raw token as userId`);
-      userId = setUserId(token, "raw token (auth disabled)");
+    // First, always try to extract userId from JWT payload (even if auth is disabled)
+    // This handles the case where token is a JWT but we want to extract the userId
+    const extractedFromPayload = fallbackDecodePayload();
+    
+    if (extractedFromPayload) {
+      logger.info(`[getUserFromToken] Successfully extracted userId from JWT payload: ${extractedFromPayload}`);
+      userId = setUserId(extractedFromPayload, "JWT payload extraction");
+    } else if (config.useAuthentication === false) {
+      // If auth is disabled and payload extraction failed, use raw token
+      logger.warn(`[getUserFromToken] AUTH DISABLED: Could not extract from payload, using raw token as userId`);
+      userId = setUserId(token, "raw token (auth disabled, payload extraction failed)");
     } else {
-      logger.info(`[getUserFromToken] AUTH ENABLED: Attempting JWT decode with secret...`);
+      // Auth is enabled, try jwt-simple decode with secret verification
+      logger.info(`[getUserFromToken] AUTH ENABLED: Attempting JWT decode with secret verification...`);
       try {
-        logger.debug(`[getUserFromToken] Calling jwt.decode() with secretKey...`);
+        logger.debug(`[getUserFromToken] Calling jwt.decode() with secretKey: ${config.secretKey.substring(0, 10)}...`);
         const decoded: any = jwt.decode(token, config.secretKey);
-        logger.info(`[getUserFromToken] ✓ JWT.decode() SUCCESS`);
+        logger.info(`[getUserFromToken] ✓ JWT.decode() SUCCESS with secret verification`);
         logger.info(`[getUserFromToken] Decoded value type: ${typeof decoded}`);
         logger.debug(`[getUserFromToken] Decoded value: ${JSON.stringify(decoded)}`);
 
         if (typeof decoded === "string") {
           logger.info(`[getUserFromToken] Decoded is STRING payload, trimming quotes...`);
-          userId = setUserId(trimQuotes(decoded), "JWT string payload");
+          userId = setUserId(trimQuotes(decoded), "JWT string payload (verified)");
         } else if (typeof decoded === "object" && decoded !== null) {
           logger.info(`[getUserFromToken] Decoded is OBJECT, searching for userId claims...`);
           const uid = claimsUserId(decoded);
           if (uid) {
-            userId = setUserId(uid, "JWT object claim");
+            userId = setUserId(uid, "JWT object claim (verified)");
           } else {
-            logger.warn(`[getUserFromToken] No userId claim in decoded object, attempting payload fallback...`);
-            const fallback = fallbackDecodePayload();
-            userId = setUserId(fallback || token, fallback ? "payload fallback" : "raw token fallback");
+            logger.warn(`[getUserFromToken] No userId claim in decoded object`);
+            // Use payload extraction result if available
+            if (extractedFromPayload) {
+              userId = setUserId(extractedFromPayload, "payload fallback (verified decode had no userId)");
+            } else {
+              userId = setUserId(token, "raw token (verified decode had no userId, payload extraction failed)");
+            }
           }
         } else {
           logger.warn(`[getUserFromToken] Decoded is unexpected type: ${typeof decoded}`);
-          userId = setUserId(String(decoded), "decoded as string");
+          userId = setUserId(String(decoded), "decoded as string (verified)");
         }
       } catch (jwtErr) {
-        logger.warn(`[getUserFromToken] ✗ JWT.decode() FAILED: ${jwtErr.message}`);
-        logger.info(`[getUserFromToken] Attempting fallback payload decode (without secret verification)...`);
-        const fallback = fallbackDecodePayload();
-        userId = setUserId(fallback || token, fallback ? "payload fallback (no secret)" : "raw token fallback");
+        logger.warn(`[getUserFromToken] ✗ JWT.decode() FAILED with secret: ${jwtErr.message}`);
+        logger.info(`[getUserFromToken] Falling back to payload extraction (without secret verification)...`);
+        // Use payload extraction result if available
+        if (extractedFromPayload) {
+          userId = setUserId(extractedFromPayload, "payload fallback (JWT decode failed)");
+        } else {
+          logger.error(`[getUserFromToken] ✗ All extraction methods failed - using raw token as last resort`);
+          userId = setUserId(token, "raw token (all methods failed)");
+        }
       }
     }
 
