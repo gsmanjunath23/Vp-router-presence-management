@@ -40,8 +40,10 @@ const config = {
   },
   // JWT secret key - must match the secret used by mobile clients
   // Mobile default: "8d$F2@wZ9!RkP#Xq7N"
-  secretKey: process.env.SECRET_KEY || process.env.JWT_SECRET || "8d$F2@wZ9!RkP#Xq7N",
-  useAuthentication: (process.env.USE_AUTHENTICATION || "").trim().toLowerCase() === "true",
+  // Handle quotes in env var (some .env files have quotes around values)
+  secretKey: (process.env.SECRET_KEY || process.env.JWT_SECRET || "8d$F2@wZ9!RkP#Xq7N").replace(/^["']|["']$/g, ""),
+  // Handle spaces and quotes in USE_AUTHENTICATION env var
+  useAuthentication: (process.env.USE_AUTHENTICATION || "").trim().replace(/^["']|["']$/g, "").toLowerCase() === "true",
   web: {
     serverUrl: process.env.WEB_SERVER_URL || "",
     socketSecret: process.env.WEB_SOCKET_SECRET || ""
