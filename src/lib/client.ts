@@ -140,8 +140,19 @@ export default class Client extends EventEmitter {
   }
 
   private addToGroup(this: Client, groupId: numberOrString) {
+    logger.info(`[addToGroup] Adding user ${this.id} to group ${groupId}`);
     Redis.addUserToGroup(this.id, groupId, (err, succeed) => {
+      if (err) {
+        logger.error(`[addToGroup] Failed to add user ${this.id} to group ${groupId}: ${err}`);
+      } else {
+        logger.info(`[addToGroup] Successfully added user ${this.id} to group ${groupId}`);
+      }
       Redis.getUsersInsideGroup(groupId, (err1, userIds) => {
+        if (err1) {
+          logger.error(`[addToGroup] Failed to get users in group ${groupId}: ${err1}`);
+        } else {
+          logger.info(`[addToGroup] Group ${groupId} now has members: ${JSON.stringify(userIds)}`);
+        }
         States.setUsersInsideGroup(groupId, userIds);
       });
     });
@@ -446,11 +457,16 @@ export default class Client extends EventEmitter {
       Recorder.start(msg);
 
       States.getUsersInsideGroup(msg.toId, (err1, userIds1) => {
-        debug(`handleGroupStartMessage - getUsersInsideGroup groupId: ${msg.toId} users: ${JSON.stringify(userIds1)}`);
+        logger.info(`[handleGroupStartMessage] Group: ${msg.toId} | Sender: ${msg.fromId} | ` +
+                    `Current userId: ${this.id} | Group members: ${JSON.stringify(userIds1)}`);
         const isSenderInGroup = userIds1
           ? userIds1.map((u) => u.toString()).includes(msg.fromId.toString())
           : false;
+        logger.info(`[handleGroupStartMessage] isSenderInGroup: ${isSenderInGroup} | ` +
+                    `fromId type: ${typeof msg.fromId} | fromId value: ${msg.fromId}`);
         if (!isSenderInGroup) {
+          logger.warn(`[handleGroupStartMessage] User ${msg.fromId} NOT in group ${msg.toId} - ` +
+                      `sending UNAUTHORIZED_GROUP and START_FAILED`);
           this.send27ToMe(msg);
           this.sendStartFailedToMe(msg);
         }
