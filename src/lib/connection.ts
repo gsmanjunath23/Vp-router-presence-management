@@ -36,7 +36,10 @@ export default class Connection extends EventEmitter {
     // clientId is already the decoded userId from getUserFromToken in server.ts
     // No need to decode it again - just use it directly as userId
     this.userId = String(clientId);
-    logger.info(`[Connection Constructor] userId set to: ${this.userId} (clientId is already decoded userId)`);
+    logger.info(
+      `[Connection Constructor] userId set to: ${this.userId} ` +
+      `(clientId is already decoded userId)`
+    );
 
     socket.addListener("close", this.handleSocketClose);
     socket.addListener("error", this.handleSocketError);
@@ -52,9 +55,10 @@ export default class Connection extends EventEmitter {
         let payloadBuf = Buffer.from(rawPayload);
         if (payloadBuf.length > 100) { // control frames must be < 126 bytes
           logger.warn(`PING payload too large (${payloadBuf.length}B); truncating for id:${this.clientId}`);
-          payloadBuf = payloadBuf.subarray(0, 100);
+          payloadBuf = Buffer.from(payloadBuf.subarray(0, 100));
         }
-        logger.info(`PING send -> id:${this.clientId} device:${this.deviceId} state:${this.socket.readyState} payloadLen:${payloadBuf.length}`);
+        logger.info(`PING send -> id:${this.clientId} device:${this.deviceId} ` +
+                    `state:${this.socket.readyState} payloadLen:${payloadBuf.length}`);
         this.socket.ping(payloadBuf, false, true);
       } catch (exception) {
         debug(`id ${this.clientId} key ${this.key}` +
@@ -145,7 +149,8 @@ export default class Connection extends EventEmitter {
     this.timestamp = Date.now();
     
     const payloadLen = data ? data.length : 0;
-    logger.info(`PING recv <- userId:${this.userId} device:${this.deviceId} payloadLen:${payloadLen} state:${this.socket.readyState}`);
+    logger.info(`PING recv <- userId:${this.userId} device:${this.deviceId} ` +
+                `payloadLen:${payloadLen} state:${this.socket.readyState}`);
     
     // Respond with PONG to client's PING
     // Send back the user ID in PONG payload
@@ -154,11 +159,13 @@ export default class Connection extends EventEmitter {
         // WebSocket control frames (PONG) must be < 126 bytes
         let pongPayload = Buffer.from(this.userId);
         if (pongPayload.length > 125) {
-          logger.warn(`PONG payload too large (${pongPayload.length}B); truncating for userId:${this.userId}`);
-          pongPayload = pongPayload.subarray(0, 125);
+          logger.warn(`PONG payload too large (${pongPayload.length}B); ` +
+                      `truncating for userId:${this.userId}`);
+          pongPayload = Buffer.from(pongPayload.subarray(0, 125));
         }
         this.socket.pong(pongPayload);
-        logger.info(`[PONG sent] -> userId:${this.userId} device:${this.deviceId} payload:"${this.userId}" (${pongPayload.length}B)`);
+        logger.info(`[PONG sent] -> userId:${this.userId} device:${this.deviceId} ` +
+                    `payload:"${this.userId}" (${pongPayload.length}B)`);
       } catch (err) {
         logger.error(`Failed to send PONG to userId ${this.userId}: ${err}`);
       }
@@ -172,7 +179,8 @@ export default class Connection extends EventEmitter {
     debug(`id ${this.clientId} key ${this.key}` +
           ` handleSocketPong ${payload}` +
           ` device ${this.deviceId}`);
-    logger.info(`PONG recv <- id:${this.clientId} device:${this.deviceId} payloadLen:${data ? data.length : 0} state:${this.socket.readyState}`);
+    logger.info(`PONG recv <- id:${this.clientId} device:${this.deviceId} ` +
+                `payloadLen:${data ? data.length : 0} state:${this.socket.readyState}`);
     this.emit("pong", payload);
   }
 }
