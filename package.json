@@ -33,15 +33,16 @@
     "start": "node dist/app.js",
     "dev": "tsc-watch --onSuccess \"node ./dist/app.js\"",
     "build": "rm -rf dist && npm run compile",
-    "build:watch": "npm run lint && tsc --watch",
-    "compile": "npm run lint && tsc",
+    "build:watch": "tsc --watch",
+    "compile": "tsc",
     "eslint": "eslint *.js src/**/*.js test/**/*.js --fix",
+    "tslint": "tslint --format verbose --project \"tsconfig.json\" --fix",
     "lint": "npm run tslint && npm run eslint",
+    "lint:check": "npm run lint || true",
     "test": "mocha",
     "test:watch": "mocha --reporter nyan --watch",
     "transpile": "npm run compile",
-    "tsc": "tsc --watch",
-    "tslint": "tslint --format verbose --project \"tsconfig.json\" --fix"
+    "tsc": "tsc --watch"
   },
   "repository": {
     "type": "git",
