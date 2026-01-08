@@ -38,7 +38,9 @@ const config = {
     password: process.env.REDIS_PASSWORD || null,
     port: process.env.REDIS_PORT || 6379
   },
-  secretKey: process.env.SECRET_KEY || "awesomevoiceping",
+  // JWT secret key - must match the secret used by mobile clients
+  // Mobile default: "8d$F2@wZ9!RkP#Xq7N"
+  secretKey: process.env.SECRET_KEY || process.env.JWT_SECRET || "8d$F2@wZ9!RkP#Xq7N",
   useAuthentication: (process.env.USE_AUTHENTICATION || "").trim().toLowerCase() === "true",
   web: {
     serverUrl: process.env.WEB_SERVER_URL || "",

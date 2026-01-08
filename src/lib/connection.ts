@@ -2,7 +2,6 @@ import * as cluster from "cluster";
 import * as EventEmitter from "events";
 
 import * as dbug from "debug";
-import * as jwt from "jwt-simple";
 import * as WebSocket from "ws";
 
 import config = require("./config");
@@ -34,37 +33,10 @@ export default class Connection extends EventEmitter {
     this.socket = socket;
     this.timestamp = Date.now();
 
-    // Decode JWT once to get clean user ID for PONG responses
-    try {
-      const decoded: any = jwt.decode(String(clientId), config.secretKey);
-      logger.info(`[Connection Constructor] JWT decoded result: ${JSON.stringify(decoded)} | type: ${typeof decoded}`);
-      
-      // The JWT payload is directly the userId string (like "TELENET_81*14946*0011")
-      // not an object with claims
-      if (typeof decoded === "string") {
-        this.userId = decoded;
-        logger.info(`[Connection Constructor] userId from JWT string: ${this.userId}`);
-      } else if (typeof decoded === "object" && decoded !== null) {
-        // Fallback: check for claim fields if it's an object
-        const claimUserId = decoded.uid || decoded.user_id || decoded.TELENET_userId || decoded.userId || decoded.sub || decoded.id || null;
-        if (claimUserId) {
-          this.userId = String(claimUserId);
-          logger.info(`[Connection Constructor] userId from JWT object claim: ${this.userId}`);
-        } else {
-          this.userId = String(clientId);
-          logger.warn(`[Connection Constructor] JWT is object but no userId claim found, using clientId`);
-        }
-      } else {
-        this.userId = String(clientId);
-        logger.warn(`[Connection Constructor] JWT decode returned unexpected type, using clientId`);
-      }
-      
-      logger.info(`[Connection Constructor] Final userId: ${this.userId}`);
-    } catch (err) {
-      // If JWT decode fails, use clientId as-is
-      this.userId = String(clientId);
-      logger.warn(`[Connection Constructor] Could not decode JWT, using clientId as-is: ${err.message}`);
-    }
+    // clientId is already the decoded userId from getUserFromToken in server.ts
+    // No need to decode it again - just use it directly as userId
+    this.userId = String(clientId);
+    logger.info(`[Connection Constructor] userId set to: ${this.userId} (clientId is already decoded userId)`);
 
     socket.addListener("close", this.handleSocketClose);
     socket.addListener("error", this.handleSocketError);
@@ -170,19 +142,21 @@ export default class Connection extends EventEmitter {
   }
 
   private handleSocketPing = (data: Buffer) => {
-    logger.info('------------Inside socket ping handler........', data.toString());
     this.timestamp = Date.now();
     
     const payloadLen = data ? data.length : 0;
     logger.info(`PING recv <- userId:${this.userId} device:${this.deviceId} payloadLen:${payloadLen} state:${this.socket.readyState}`);
     
     // Respond with PONG to client's PING
-    // Send back the decoded user ID (e.g., "TELENET_81*14946*0013")
+    // Send back the user ID in PONG payload
     if (this.socket.readyState === WebSocket.OPEN) {
       try {
-        // Always send the decoded user ID in PONG
-        const pongPayload = Buffer.from(this.userId);
-        logger.info('pong payload........', pongPayload.toString());
+        // WebSocket control frames (PONG) must be < 126 bytes
+        let pongPayload = Buffer.from(this.userId);
+        if (pongPayload.length > 125) {
+          logger.warn(`PONG payload too large (${pongPayload.length}B); truncating for userId:${this.userId}`);
+          pongPayload = pongPayload.subarray(0, 125);
+        }
         this.socket.pong(pongPayload);
         logger.info(`[PONG sent] -> userId:${this.userId} device:${this.deviceId} payload:"${this.userId}" (${pongPayload.length}B)`);
       } catch (err) {
