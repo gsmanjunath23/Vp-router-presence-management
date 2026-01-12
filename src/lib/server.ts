@@ -463,23 +463,19 @@ class Server implements IServer {
 
     let userId: string;
 
-    // First, always try to extract userId from JWT payload (even if auth is disabled)
-    // This handles the case where token is a JWT but we want to extract the userId
-    const extractedFromPayload = fallbackDecodePayload();
-    
-    if (extractedFromPayload) {
-      logger.info(
-        `[getUserFromToken] Successfully extracted userId from JWT payload: ` +
-        `${extractedFromPayload}`
-      );
-      userId = setUserId(extractedFromPayload, "JWT payload extraction");
-    } else if (config.useAuthentication === false) {
-      // If auth is disabled and payload extraction failed, use raw token
-      logger.warn(`[getUserFromToken] AUTH DISABLED: Could not extract from payload, using raw token as userId`);
-      userId = setUserId(token, "raw token (auth disabled, payload extraction failed)");
+    if (config.useAuthentication === false) {
+      // AUTHENTICATION DISABLED: Use token directly as userId (no JWT decoding)
+      // Client sends direct userId value, not a JWT token
+      logger.info(`[getUserFromToken] AUTHENTICATION DISABLED - using token directly as userId (no JWT decoding)`);
+      userId = setUserId(token, "direct userId value (auth disabled)");
     } else {
-      // Auth is enabled, try jwt-simple decode with secret verification
-      logger.info(`[getUserFromToken] AUTH ENABLED: Attempting JWT decode with secret verification...`);
+      // AUTHENTICATION ENABLED: Verify JWT signature and extract userId
+      logger.info(`[getUserFromToken] AUTHENTICATION ENABLED - verifying JWT signature`);
+      
+      // First, try to extract userId from payload (for fallback if verification fails)
+      const extractedFromPayload = fallbackDecodePayload();
+      
+      // Now verify JWT signature with secret
       try {
         logger.debug(
           `[getUserFromToken] Calling jwt.decode() with secretKey: ` +
@@ -508,7 +504,9 @@ class Server implements IServer {
             if (extractedFromPayload) {
               userId = setUserId(extractedFromPayload, "payload fallback (verified decode had no userId)");
             } else {
-              userId = setUserId(token, "raw token (verified decode had no userId, payload extraction failed)");
+              logger.error(`[getUserFromToken] ✗ Verified decode had no userId and payload extraction failed`);
+              deferred.reject(new Error("JWT token verified but no userId found in payload"));
+              return deferred.promise;
             }
           }
         } else {
@@ -516,15 +514,11 @@ class Server implements IServer {
           userId = setUserId(String(decoded), "decoded as string (verified)");
         }
       } catch (jwtErr) {
-        logger.warn(`[getUserFromToken] ✗ JWT.decode() FAILED with secret: ${jwtErr.message}`);
-        logger.info(`[getUserFromToken] Falling back to payload extraction (without secret verification)...`);
-        // Use payload extraction result if available
-        if (extractedFromPayload) {
-          userId = setUserId(extractedFromPayload, "payload fallback (JWT decode failed)");
-        } else {
-          logger.error(`[getUserFromToken] ✗ All extraction methods failed - using raw token as last resort`);
-          userId = setUserId(token, "raw token (all methods failed)");
-        }
+        // JWT signature verification failed
+        logger.error(`[getUserFromToken] ✗ JWT signature verification FAILED: ${jwtErr.message}`);
+        logger.error(`[getUserFromToken] Token signature does not match secret key - rejecting token`);
+        deferred.reject(new Error(`JWT signature verification failed: ${jwtErr.message}`));
+        return deferred.promise;
       }
     }
 
@@ -551,9 +545,24 @@ class Server implements IServer {
   private verifyClient(this: Server, info, verified) {
     logger.info("verifyClient CALLED");
     logger.info(`inside verifyClient after getUserFromToken info.`, info.req.headers);
+    
     const connection = this.getConnectionFromHeaders(info.req.headers, true);
     const token = connection.token;
-    if (!token) { return verified(false, 401, "Unauthorized"); }
+    
+    // If authentication is disabled, allow connection without JWT verification
+    // Client sends direct userId value, not a JWT token
+    if (!config.useAuthentication) {
+      logger.info(`[verifyClient] Authentication DISABLED - allowing connection (token will be used directly as userId)`);
+      return verified(true, 200, "Authorized (Auth Disabled)");
+    }
+    
+    // Authentication is enabled - verify JWT token signature
+    if (!token) { 
+      logger.warn(`[verifyClient] No token provided but authentication is ENABLED`);
+      return verified(false, 401, "Unauthorized"); 
+    }
+    
+    // Verify JWT signature and extract userId
     this.getUserFromToken(token)
       .then((user) => {
         return verified(user, 200, "Authorized");
